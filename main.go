@@ -133,7 +133,7 @@ func secondPass() {
 
 		switch inst.Mnemonic {
 		case "MOV":
-			code = []byte{0x88, 0xC0} // Примерный код
+			code = []byte{0x88, 0xC0}
 		case "OR":
 			code = []byte{0x08, 0xC0}
 		case "MUL":
@@ -151,7 +151,6 @@ func secondPass() {
 			val, _ := strconv.ParseInt(inst.Op1, 0, 16)
 			code = []byte{byte(val & 0xFF), byte((val >> 8) & 0xFF)}
 		default:
-			// Не генерирует код
 		}
 
 		machineCodeStr := ""
