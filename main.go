@@ -25,6 +25,7 @@ var (
 	locationCounter = 0x0000
 	segmentOrigin   = 0x0000
 	lineNumber      = 0
+	errors          []string
 )
 
 func main() {
@@ -33,6 +34,8 @@ func main() {
 	firstPass()
 	secondPass()
 	writeListing()
+	writeObjectCode()
+	writeErrors()
 }
 
 func readSource(filename string) {
@@ -80,6 +83,17 @@ func parseLine(line string) Instruction {
 	return inst
 }
 
+func parseNumericLiteral(valStr string) (int64, error) {
+	valStr = strings.ToLower(strings.TrimSpace(valStr))
+	if strings.HasSuffix(valStr, "h") {
+		return strconv.ParseInt(strings.TrimSuffix(valStr, "h"), 16, 16)
+	}
+	if strings.HasPrefix(valStr, "0x") {
+		return strconv.ParseInt(valStr[2:], 16, 16)
+	}
+	return strconv.ParseInt(valStr, 10, 16)
+}
+
 func firstPass() {
 	locationCounter = 0
 	segmentOrigin = 0
@@ -92,8 +106,11 @@ func firstPass() {
 			instructions[i].Address = locationCounter
 
 		case "ORG":
-			valStr := strings.TrimSuffix(strings.TrimPrefix(inst.Op1, "0x"), "h")
-			val, _ := strconv.ParseInt(valStr, 16, 16)
+			val, err := parseNumericLiteral(inst.Op1)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("Ошибка на строке %d: неверное значение ORG \"%s\"", inst.LineNum, inst.Op1))
+				continue
+			}
 			locationCounter = int(val)
 			segmentOrigin = locationCounter
 			instructions[i].Address = locationCounter
@@ -145,10 +162,18 @@ func secondPass() {
 			offset := symbolTable[inst.Op1] - (locationCounter + 2)
 			code = []byte{0x7A, byte(offset)}
 		case "DB":
-			val, _ := strconv.Atoi(inst.Op1)
+			val, err := parseNumericLiteral(inst.Op1)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("Ошибка на строке %d: неверное значение DB \"%s\"", inst.LineNum, inst.Op1))
+				continue
+			}
 			code = []byte{byte(val)}
 		case "DW":
-			val, _ := strconv.ParseInt(inst.Op1, 0, 16)
+			val, err := parseNumericLiteral(inst.Op1)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("Ошибка на строке %d: неверное значение DW \"%s\"", inst.LineNum, inst.Op1))
+				continue
+			}
 			code = []byte{byte(val & 0xFF), byte((val >> 8) & 0xFF)}
 		default:
 		}
@@ -189,5 +214,28 @@ func writeListing() {
 			label,
 			inst.RawLine)
 		fmt.Fprintln(out, line)
+	}
+}
+
+func writeObjectCode() {
+	out, _ := os.Create("program.obj")
+	defer out.Close()
+
+	for _, inst := range instructions {
+		if inst.MachineCode != "" {
+			fmt.Fprintln(out, inst.MachineCode)
+		}
+	}
+}
+
+func writeErrors() {
+	if len(errors) == 0 {
+		return
+	}
+	out, _ := os.Create("errors.txt")
+	defer out.Close()
+
+	for _, err := range errors {
+		fmt.Fprintln(out, err)
 	}
 }

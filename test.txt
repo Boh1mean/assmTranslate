@@ -24,3 +24,30 @@ done:   MOV AH, 4Ch        ; DOS функция выхода
 
 ENDS
 END
+
+//
+
+SEGMENT data
+value1: DB 10
+value2: DW 12G4h     ;  Ошибка: недопустимый символ "G" в числе
+ENDS
+
+SEGMENT code
+ORG 100h
+
+start:  MOV AX, value2
+        MOV BX, AX
+        OR  AL, BL
+        MUL AL
+        JS  done
+
+        MOV CX, [SI+4]
+        MOV [SI+6], AX
+        MOV AX, 2
+        MOV [value1], AL
+
+done:   MOV AH, 4Ch
+        INT 21h
+
+ENDS
+END
